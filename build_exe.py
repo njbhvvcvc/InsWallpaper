@@ -16,11 +16,25 @@ if not os.path.isfile(PYI):
     PYI = "pyinstaller"
 
 CACHE = os.path.join(os.environ["LOCALAPPDATA"], "ms-playwright")
-NEEDED_DIRS = ["chromium_headless_shell-1228", "ffmpeg-1011"]
-for d in NEEDED_DIRS:
-    if not os.path.isdir(os.path.join(CACHE, d)):
-        print(f"[缺] {d} 不在 {CACHE};请先运行 playwright install chromium(Headless Shell)")
+
+def _find_playwright_dirs(prefix):
+    """在 ms-playwright 缓存里查找匹配 prefix 的目录。浏览器版本号会随
+    playwright 升级变化,不写死(否则 CI/未来升级后本地找不到而退出)。
+    取字典序最大者(通常即最新版本)。"""
+    if not os.path.isdir(CACHE):
+        print(f"[缺] ms-playwright 缓存不存在: {CACHE};请先运行 playwright install chromium")
         sys.exit(1)
+    matches = sorted(
+        d for d in os.listdir(CACHE)
+        if d.startswith(prefix) and os.path.isdir(os.path.join(CACHE, d))
+    )
+    if not matches:
+        print(f"[缺] 未找到 {prefix}-* 于 {CACHE};请先运行 playwright install chromium")
+        sys.exit(1)
+    return matches
+
+NEEDED_DIRS = _find_playwright_dirs("chromium_headless_shell") + _find_playwright_dirs("ffmpeg")
+print(f"[playwright 浏览器] 使用: {', '.join(NEEDED_DIRS)}")
 
 add_data = []
 for d in NEEDED_DIRS:
