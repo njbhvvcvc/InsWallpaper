@@ -1,0 +1,30 @@
+# ===== 构建产物 =====
+dist/
+build/
+__pycache__/
+_pw_driver_filtered/
+*.spec.bak
+
+# ===== 二进制 / 大文件（不进 git，需自行放置）=====
+*.exe
+realesrgan/
+*.bin
+*.param
+*.dll
+*.7z
+*.zip
+
+# ===== 运行时生成 =====
+app_error.log
+selftest_result.txt
+selftest/
+
+# ===== 本地数据 =====
+.workbuddy/
+accounts/
+InsWallpaper_old_bak.exe
+
+# ===== 系统 =====
+Thumbs.db
+Desktop.ini
+.DS_Store
