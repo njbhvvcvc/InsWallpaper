@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""INS 壁纸轮播器 v2.4
-支持四类图片来源:
+"""INS 壁纸轮播器 v2.5
+支持五类图片来源:
   - IG 账户(ig)      : 粘贴 Instagram 链接自动抓取(并保存每张图发布时间)
+  - 歌手(singer)     : 输入歌手名,自动抓该歌手全部专辑封面当壁纸(数据来自 GD 音乐台 API)
   - 本地文件夹(folder): 引用一个本地图片文件夹(不复制,实时读取)
   - 本地单张集合(local): 手动导入的单张图片归集
   - 随机图(内置,net) : 内置几个免费API随机好图(Picsum / Bing 壁纸镜像),免 key 直连
@@ -59,7 +60,7 @@ IMG_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 FIT_CN = {"铺满(不变形)": "cover", "拼贴(16:9)": "collage",
           "适应(黑边)": "fit", "居中": "center", "平铺": "tile"}
 FIT_KEYS = list(FIT_CN.keys())
-TYPE_CN = {"ig": "IG", "folder": "文件夹", "local": "本地", "net": "随机图"}
+TYPE_CN = {"ig": "IG", "folder": "文件夹", "local": "本地", "net": "随机图", "singer": "歌手"}
 # 轮换跨度:只轮换发布时间在"最近 N 天"内的照片;0=永久(全部)
 SPAN_CN = {"永久": 0, "1年": 365, "20天": 20, "10天": 10}
 SPAN_KEYS = list(SPAN_CN.keys())
@@ -182,9 +183,99 @@ def in_window(acc, now):
 
 # ---------- 抓取(playwright + igram.world,仅 ig 类型) ----------
 def fetch_account(acc, log):
-    if acc.get("type") == "net":
+    t = acc.get("type")
+    if t == "net":
         return fetch_net(acc, log)
+    if t == "singer":
+        return fetch_singer(acc, log)
     return fetch_ig(acc, log)
+
+# ---------- 抓取(歌手专辑封面,GD 音乐台 API,仅 singer 类型) ----------
+def _gd_get(params, proxy=""):
+    """调用 GD 音乐台 API,返回解析后的 JSON(失败返回 {})。仅用标准库,便于打进 exe。"""
+    import urllib.request, urllib.parse
+    qs = urllib.parse.urlencode(params)
+    url = "https://music-api.gdstudio.xyz/api.php?" + qs
+    if proxy:
+        url = proxy + urllib.parse.quote(url, safe="")
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Referer": "https://music-api.gdstudio.xyz/",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return json.loads(resp.read().decode("utf-8", "ignore"))
+    except Exception:
+        return {}
+
+def fetch_singer(acc, log):
+    """歌手来源:抓该歌手全部专辑封面,存入账户目录当壁纸。增量保留(按 pic_id 命名,不删旧图)。"""
+    import urllib.request, urllib.parse
+    artist = acc.get("artist", "")
+    source = acc.get("source", "netease")
+    out = acc["dir"]
+    os.makedirs(out, exist_ok=True)
+    if not artist:
+        log("歌手名为空,跳过")
+        return 0
+    log(f"正在搜索歌手「{artist}」的全部专辑(来源:{source})…")
+    # 1) 分页搜索该歌手,收集全部曲目
+    raw = []
+    for p in range(1, 9):
+        d = _gd_get({"types": "search", "source": source, "name": artist, "count": 20, "pages": p})
+        arr = d if isinstance(d, list) else (d.get("data") or d.get("result") or d.get("list") or [])
+        if not arr:
+            break
+        raw += arr
+        if len(arr) < 20:
+            break
+    # 2) 去重专辑(按 pic_id 封面唯一)
+    seen, albums = {}, []
+    for t in raw:
+        pid = str(t.get("pic_id") or "")
+        key = pid or (t.get("album") or "")
+        if not key:
+            continue
+        if key not in seen:
+            seen[key] = 1
+            ar = t.get("artist")
+            if isinstance(ar, list):
+                ar = "/".join(ar)
+            albums.append({"album": t.get("album") or "(未知专辑)",
+                           "artist": ar or artist, "pic_id": pid, "source": source})
+    if not albums:
+        log("未找到该歌手的专辑封面")
+        return 0
+    log(f"找到 {len(albums)} 张专辑,开始下载封面…")
+    saved = 0
+    for a in albums:
+        if not a["pic_id"]:
+            continue
+        fn = f"album_{a['pic_id']}.jpg"
+        fpath = os.path.join(out, fn)
+        if os.path.isfile(fpath) and os.path.getsize(fpath) > 1000:
+            saved += 1
+            continue
+        pic = _gd_get({"types": "pic", "source": source, "id": a["pic_id"], "size": 500})
+        url = pic.get("url") if isinstance(pic, dict) else None
+        if not url:
+            continue
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0", "Referer": "https://music.163.com/"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+            if len(data) < 1000:
+                continue
+            with open(fpath, "wb") as fp:
+                fp.write(data)
+            saved += 1
+            log(f"  已保存专辑《{a['album']}》封面")
+        except Exception as e:
+            log(f"  封面下载失败《{a['album']}》: {e}")
+    return saved
 
 def fetch_net(acc, log):
     """内置免费随机图:从 NET_ENDPOINTS 轮流抓 NET_BATCH 张,存到账户目录。无发布时间。"""
@@ -628,7 +719,7 @@ class App:
         self.log_lines = []            # 运行日志环形缓冲(F12 查看)
         self._fetching = set()         # 正在抓取的账户名(防同账户并发互相覆盖)
 
-        root.title("INS 壁纸轮播器  v2.4")
+        root.title("INS 壁纸轮播器  v2.5")
         root.geometry("840x690")
         try:
             root.iconbitmap()
@@ -678,6 +769,16 @@ class App:
         self.max_photos_var = tk.IntVar(value=0)
         ttk.Spinbox(row0b, from_=0, to=300, increment=1, textvariable=self.max_photos_var, width=5).pack(side="left", padx=4)
         ttk.Label(row0b, text="(0=全部)", foreground="#999", font=("Microsoft YaHei", 8)).pack(side="left", padx=2)
+
+        # 歌手(音乐)来源:抓全部专辑封面当壁纸 + 打开音乐播放器
+        row0c = ttk.Frame(f0)
+        row0c.pack(fill="x", padx=6, pady=(0, 4))
+        ttk.Label(row0c, text="歌手(专辑壁纸):", foreground="#666").pack(side="left")
+        self.singer_var = tk.StringVar(value="")
+        ttk.Entry(row0c, textvariable=self.singer_var, width=22).pack(side="left", padx=4)
+        ttk.Button(row0c, text="导入该歌手专辑", command=self.import_singer).pack(side="left")
+        ttk.Button(row0c, text="打开音乐播放器", command=lambda: self.open_player(self.singer_var.get().strip())).pack(side="left", padx=6)
+        ttk.Label(row0c, text="(抓该歌手全部专辑封面当壁纸;播放器用 GD 音乐台 API,数据仅供学习)", foreground="#999", font=("Microsoft YaHei", 8)).pack(side="left", padx=2)
 
         # 来源列表(可滚动 + 勾选 + 时段)
         f1 = ttk.LabelFrame(self.root, text="来源列表(勾选参与轮播,可设每日时段)")
@@ -797,8 +898,10 @@ class App:
             n = len(account_images(acc))
             ttk.Label(row, text=f"{n}张", foreground="#666").pack(side="left", padx=6)
             # 按钮(按类型)
-            if acc.get("type") in ("ig", "net"):
+            if acc.get("type") in ("ig", "net", "singer"):
                 ttk.Button(row, text="刷新", command=lambda a=acc: self.refresh_one(a)).pack(side="left", padx=2)
+            if acc.get("type") == "singer":
+                ttk.Button(row, text="打开播放器", command=lambda a=acc: self.open_player(a.get("artist", ""))).pack(side="left", padx=2)
             if acc.get("type") in ("ig", "local"):
                 ttk.Button(row, text="导入图片", command=lambda a=acc: self.import_images(a)).pack(side="left", padx=2)
             ttk.Button(row, text="删除", command=lambda a=acc: self.delete_account(a)).pack(side="left", padx=2)
@@ -913,6 +1016,25 @@ class App:
         threading.Thread(target=self._fetch_thread, args=(acc,), daemon=True).start()
         self.log("已添加内置随机图来源并开始抓取")
 
+    def import_singer(self):
+        name = self.singer_var.get().strip()
+        if not name:
+            messagebox.showerror("错误", "请输入歌手名(例如 Yorushika / 周杰伦)。")
+            return
+        sn = "singer_" + re.sub(r"\W+", "_", name)[:28]
+        if any(a.get("type") == "singer" and a.get("artist") == name for a in self.cfg["accounts"]):
+            messagebox.showinfo("提示", f"歌手「{name}」已导入。")
+            return
+        d = os.path.join(ACCOUNTS_DIR, sn)
+        acc = {"name": sn, "type": "singer", "artist": name, "source": "netease",
+               "dir": d, "url": "GD音乐台·" + name}
+        self.cfg["accounts"].append(acc)
+        self.cfg.setdefault("selected", []).append(sn)
+        save_cfg(self.cfg)
+        self.refresh_account_list()
+        threading.Thread(target=self._fetch_thread, args=(acc,), daemon=True).start()
+        self.log(f"已添加歌手来源「{name}」并开始抓取全部专辑封面")
+
     def refresh_all(self):
         """一次性刷新所有 IG 账户,各账户按 refresh_gap 错峰启动,避免服务器锁死。"""
         igs = [a for a in self.cfg["accounts"] if a.get("type") == "ig"]
@@ -989,6 +1111,34 @@ class App:
 
     def open_cache(self):
         os.startfile(ACCOUNTS_DIR)
+
+    def _music_html_path(self):
+        """定位音乐播放器 HTML:打包后从 MEIPASS 拷到 APP_DIR,开发时取脚本同级。"""
+        if getattr(sys, "frozen", False):
+            src = os.path.join(sys._MEIPASS, "music_player.html")
+            dst = os.path.join(APP_DIR, "music_player.html")
+            if os.path.isfile(src) and (not os.path.isfile(dst) or os.path.getmtime(src) > os.path.getmtime(dst)):
+                try:
+                    import shutil
+                    shutil.copy2(src, dst)
+                except Exception:
+                    pass
+            return dst if os.path.isfile(dst) else (src if os.path.isfile(src) else None)
+        local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_player.html")
+        return local if os.path.isfile(local) else None
+
+    def open_player(self, artist=""):
+        html = self._music_html_path()
+        if not html:
+            messagebox.showerror("错误", "未找到音乐播放器 music_player.html(请确保它和本程序在一起)。")
+            return
+        url = "file:///" + html.replace("\\", "/")
+        if artist:
+            from urllib.parse import quote
+            url += "?artist=" + quote(artist)
+        import webbrowser
+        webbrowser.open(url)
+        self.log("已打开音乐播放器" + (f"(歌手: {artist})" if artist else ""))
 
     # ---- 轮播 ----
     def gather(self, now=None):

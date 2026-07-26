@@ -48,6 +48,13 @@ if os.path.isdir(REALESRGAN) and os.path.isfile(os.path.join(REALESRGAN, "reales
 else:
     print(f"[警告] 未找到 realesrgan 目录/二进制,将跳过超分打包({REALESRGAN})")
 
+# 音乐播放器 HTML(GD 音乐台,歌手壁纸配套)
+MUSIC_HTML = os.path.join(ROOT, "music_player.html")
+if os.path.isfile(MUSIC_HTML):
+    add_data += ["--add-data", f"{MUSIC_HTML.replace(chr(92),'/')};music_player.html"]
+else:
+    print(f"[警告] 未找到 music_player.html,将跳过打包({MUSIC_HTML})")
+
 # ── 过滤 playwright driver:剔除 lib/vite(调试 UI 资产,含会崩的 SVG) ──
 import playwright as _pw
 PW_ROOT = os.path.dirname(_pw.__file__)
