@@ -24,21 +24,23 @@
   html,body{height:100%}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    background:radial-gradient(1200px 700px at 80% -10%,rgba(124,92,255,.18),transparent 60%),
-               radial-gradient(900px 600px at -10% 110%,rgba(77,212,255,.14),transparent 55%),
-               var(--bg);
     color:var(--txt);
-    min-height:100vh;
-    padding-bottom:120px;
+    display:flex;flex-direction:column;height:100vh;overflow:hidden;
     -webkit-font-smoothing:antialiased;
   }
+  /* 桌面壁纸背景层(由本地服务 /current_wallpaper 注入 file:// 路径) */
+  #bgLayer{position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;background-repeat:no-repeat;transition:background-image .6s ease}
+  #bgOverlay{position:fixed;inset:0;z-index:-1;background:
+     radial-gradient(1200px 700px at 80% -10%,rgba(124,92,255,.18),transparent 60%),
+     radial-gradient(900px 600px at -10% 110%,rgba(77,212,255,.14),transparent 55%),
+     rgba(13,15,26,.55);}
   a{color:var(--accent2);text-decoration:none}
   button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
   input,select{font-family:inherit}
 
   /* ===== Header ===== */
   header{
-    position:sticky;top:0;z-index:30;
+    position:static;flex-shrink:0;
     backdrop-filter:blur(14px);
     background:linear-gradient(180deg,rgba(13,15,26,.92),rgba(13,15,26,.66));
     border-bottom:1px solid var(--line);
@@ -68,6 +70,7 @@
   .icon-btn svg{width:20px;height:20px}
 
   /* ===== Layout ===== */
+  .main-scroll{flex:1;min-height:0;overflow-y:auto}
   .wrap{max-width:1280px;margin:0 auto;padding:20px;display:grid;grid-template-columns:1fr 320px;gap:20px}
   @media (max-width:920px){ .wrap{grid-template-columns:1fr} }
 
@@ -145,7 +148,7 @@
 
   /* ===== Player bar ===== */
   .player{
-    position:fixed;bottom:0;left:0;right:0;z-index:40;
+    position:static;flex-shrink:0;
     background:linear-gradient(180deg,rgba(20,24,38,.86),rgba(13,15,26,.96));
     backdrop-filter:blur(16px);border-top:1px solid var(--line);
     padding:12px 20px;display:grid;grid-template-columns:minmax(180px,1fr) minmax(280px,2.4fr) minmax(140px,1fr);gap:18px;align-items:center;
@@ -188,6 +191,15 @@
   .toast.err{border-color:var(--err);color:var(--err)}
   .toast.ok{border-color:var(--good);color:var(--good)}
 
+  /* ===== 下载进度条 ===== */
+  .dl-progress{position:fixed;left:50%;transform:translateX(-50%);bottom:92px;z-index:58;
+    width:min(86vw,520px);background:var(--bg2);border:1px solid var(--line);border-radius:12px;
+    padding:10px 16px;box-shadow:var(--shadow);display:none;font-size:13px;align-items:center;gap:12px}
+  .dl-progress.show{display:flex}
+  .dl-progress .dl-bar{flex:1;height:6px;border-radius:6px;background:var(--card2);overflow:hidden}
+  .dl-progress .dl-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
+  .dl-progress .dl-txt{color:var(--txt2);white-space:nowrap;min-width:70px;text-align:right}
+
   /* lyrics panel */
   .lyric-panel{
     position:fixed;inset:0;z-index:45;display:none;flex-direction:column;
@@ -209,9 +221,55 @@
   @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}100%{content:""}}
   ::-webkit-scrollbar{width:8px;height:8px}
   ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px}
+
+  /* ===== row more-menu popover ===== */
+  .row-menu{
+    position:fixed;z-index:55;min-width:228px;background:var(--bg2);border:1px solid var(--line);
+    border-radius:14px;padding:8px;box-shadow:var(--shadow);display:none;
+  }
+  .row-menu.show{display:block}
+  .row-menu .mi{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border-radius:10px;
+    color:var(--txt);font-size:13px;transition:.15s;
+  }
+  .row-menu .mi:hover{background:var(--card2)}
+  .row-menu .mi .ic{width:18px;text-align:center;flex-shrink:0;opacity:.85}
+  .row-menu .sep{height:1px;background:var(--line);margin:6px 4px}
+  .mode-btn{font-size:12px;font-weight:600;color:var(--txt2);background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;min-width:52px;transition:.15s}
+  .mode-btn:hover{color:var(--txt);border-color:var(--accent2)}
+  .mode-btn.m-shuffle{color:var(--accent2);border-color:var(--accent2)}
+  .mode-btn.m-one{color:#ffb454;border-color:#ffb454}
+  .pl-head{display:flex;gap:8px;align-items:center;padding:8px 4px 12px;flex-wrap:wrap}
+  .mini-btn{font-size:12px;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer}
+  .mini-btn:hover{border-color:var(--accent2)}
+  .mini-btn.danger:hover{border-color:#ff5d5d;color:#ff5d5d}
+  .pl-select{flex:1;min-width:120px;font-size:13px;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:6px 8px}
+  .pl-new{display:flex;gap:8px;margin-bottom:14px}
+  .pl-new input{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:14px}
+  .modal-sep{font-size:12px;color:var(--txt2);margin:6px 0 10px;border-top:1px solid var(--line);padding-top:10px}
+  .pl-list{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto}
+  .pl-pick{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;font-size:14px}
+  .pl-pick:hover{border-color:var(--accent2)}
+  .pl-pick .cnt{font-size:12px;color:var(--txt2)}
+
+  /* ===== floating lyric ===== */
+  .float-lyric{
+    position:fixed;left:50%;transform:translateX(-50%) translateY(8px);bottom:98px;z-index:42;
+    max-width:min(82vw,780px);padding:12px 24px;border-radius:999px;
+    background:linear-gradient(135deg,rgba(124,92,255,.92),rgba(77,212,255,.86));
+    color:#fff;font-size:15px;font-weight:600;text-align:center;line-height:1.45;
+    box-shadow:0 10px 34px rgba(0,0,0,.5);backdrop-filter:blur(10px);
+    pointer-events:none;opacity:0;transition:opacity .3s, transform .3s;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .float-lyric.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .float-lyric .tr{display:block;font-size:12px;font-weight:500;opacity:.85;margin-top:3px;white-space:normal}
 </style>
 </head>
 <body>
+
+<div id="bgLayer"></div>
+<div id="bgOverlay"></div>
 
 <header>
   <div class="hd-row">
@@ -236,12 +294,13 @@
   </div>
 </header>
 
-<div class="wrap">
+<main class="main-scroll"><div class="wrap">
   <div class="main">
     <div class="panel">
       <div class="tabs">
         <button class="tab active" data-view="search">🔍 搜索结果</button>
         <button class="tab" data-view="playlist">📃 播放列表 (<span id="qcount">0</span>)</button>
+        <button class="tab" data-view="playlists">🎵 歌单 (<span id="plsCount">0</span>)</button>
       </div>
       <div id="view-search">
         <div class="empty" id="searchEmpty">
@@ -257,6 +316,19 @@
           播放列表为空。搜索或选择歌手/专辑后，歌曲会自动加入这里。
         </div>
         <div class="list" id="playlistList"></div>
+      </div>
+      <div id="view-playlists" style="display:none">
+        <div class="pl-head">
+          <button class="mini-btn" id="newPlBtn">➕ 新建歌单</button>
+          <select class="pl-select" id="plSelect"></select>
+          <button class="mini-btn" id="playPlBtn" title="播放整个歌单">▶ 播放</button>
+          <button class="mini-btn danger" id="delPlBtn" title="删除当前歌单">🗑 删除</button>
+        </div>
+        <div class="empty" id="plsEmpty">
+          <div class="big">🎵</div>
+          还没有歌单。点「➕ 新建歌单」，或在任意歌曲的「⋯」菜单里选「添加到歌单」。
+        </div>
+        <div class="list" id="plsList"></div>
       </div>
     </div>
   </div>
@@ -283,13 +355,15 @@
     </div>
     <div class="panel side-card" style="font-size:12px;color:var(--txt2);line-height:1.7">
       <h2><span class="bar"></span>💡 使用说明</h2>
-      • 点击歌曲行即可播放，点击歌手/专辑名可整张或整人播放。<br/>
-      • 双击<span style="color:var(--accent2)">歌词</span>按钮查看同步歌词。<br/>
-      • 点<span style="color:var(--accent2)">💿 下载此歌手全部专辑做壁纸</span>：把该歌手全部专辑封面下载到「下载」目录（并导出清单 JSON），可导入壁纸软件当轮播图。<br/>
-      • 数据来自 GD 音乐台公开 API，仅供学习。
+      • 点击歌曲行播放；点歌手/专辑名可整张或整人播放。<br/>
+      • 每行右侧「⋯」按钮：下载歌曲 / 下载整张专辑 / 下载该歌手全部歌曲（会询问是否烧录歌词+封面）/ 加此封面做壁纸 / 加全部专辑封面做壁纸。<br/>
+      • 点<span style="color:var(--accent2)">💿 下载此歌手全部专辑做壁纸</span>：自动把全部专辑封面交回壁纸软件配置成壁纸来源(与 INS 一样参与轮播),无需手动导入;若软件未运行则回退为下载到本地。<br/>
+      • 右下角<span style="color:var(--accent2)">悬浮歌词</span>按钮：播放时屏幕底部实时显示当前歌词。<br/>
+      • 数据来自 GD 音乐台公开 API，仅供学习；下载音频请遵守相关服务条款。
     </div>
   </aside>
 </div>
+</main>
 
 <!-- Player bar -->
 <div class="player">
@@ -314,6 +388,8 @@
   </div>
   <div class="right">
     <button class="icon-btn" id="lyricBtn" title="歌词"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 10h10M4 15h16M4 20h10"/></svg></button>
+    <button class="icon-btn" id="floatLyricBtn" title="悬浮歌词 开/关"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h15a3 3 0 0 1 3 3v0M3 12h11a3 3 0 0 1 3 3v0M3 18h7"/></svg></button>
+    <button class="mode-btn" id="playModeBtn" title="播放模式：顺序 / 随机 / 单曲循环（点击切换）">顺序</button>
     <div class="vol">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg>
       <input id="vol" type="range" min="0" max="1" step="0.01" value="0.9" />
@@ -385,6 +461,44 @@
   </div>
 </div>
 
+<!-- Row more-menu popover -->
+<div class="row-menu" id="rowMenu"></div>
+
+<!-- Download progress -->
+<div class="dl-progress" id="dlProgress"><div class="dl-bar"><div class="dl-fill" id="dlFill"></div></div><span class="dl-txt" id="dlTxt">0%</span></div>
+
+<!-- Floating lyric -->
+<div class="float-lyric" id="floatLyric"></div>
+
+<!-- Burn-confirm modal -->
+<div class="modal-bg" id="burnModal">
+  <div class="modal">
+    <h3>🎛 下载该歌手全部歌曲</h3>
+    <p style="font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:16px">是否为每首歌<span style="color:var(--txt)">烧录（嵌入）歌词与封面</span>到音频文件？烧录后播放器可直接显示封面与歌词，但文件稍大、处理稍慢。<br/><span style="color:var(--accent2)">提示：若下载失败多为跨域限制，可在设置里填 CORS 代理。</span></p>
+    <div class="modal-acts">
+      <button class="tab" id="burnCancel">取消</button>
+      <button class="tab" id="burnNo">仅下载音频</button>
+      <button class="tab active" id="burnYes">烧录并下载</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add-to-playlist modal -->
+<div class="modal-bg" id="plModal">
+  <div class="modal">
+    <h3>➕ 添加到歌单</h3>
+    <div class="pl-new">
+      <input id="plNewName" type="text" placeholder="新建歌单名称" />
+      <button class="mini-btn" id="plNewAdd">新建并加入</button>
+    </div>
+    <div class="modal-sep">或选择已有歌单</div>
+    <div class="pl-list" id="plPickList"></div>
+    <div class="modal-acts">
+      <button class="tab" id="plModalClose">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <audio id="audio"></audio>
@@ -427,7 +541,11 @@
     lastResults:[],
     lastResultsCtx:"search", // search | album | artist
     lyrics:[],
-    lyricIndex:-1
+    lyricIndex:-1,
+    floatLyricOn:true,
+    playMode: localStorage.getItem("gd_playMode") || "sequence",
+    playlists: loadPlaylists(),
+    activePlaylist: null
   };
 
   const $ = id => document.getElementById(id);
@@ -481,24 +599,94 @@
     if(!track.pic_id) return "";
     return apiURL({types:"pic", source:track.source, id:track.pic_id, size:size||500});
   }
+  // GD types=pic 返回 {"url":"..."} JSON(并非直接图片),这里解析出真实图片地址。
+  // 若返回的是图片本身(部分环境),则原样返回。
+  // 封面真实地址缓存:同一首歌的封面在一个会话内只解析一次,避免切歌/重渲染时反复打 API
+  const __coverCache = new Map();
+  async function resolveCoverURL(track, size){
+    const sz = size || 500;
+    if(!track || !track.pic_id) return "";
+    const key = track.source + ":" + track.pic_id + ":" + sz;
+    if(__coverCache.has(key)) return __coverCache.get(key);
+    const u = picURL(track, sz);
+    try{
+      const r = await fetch(u);
+      const buf = await r.arrayBuffer();
+      let url = u;
+      if(new Uint8Array(buf.slice(0,1))[0] === 0x7b){ // '{' -> JSON
+        const j = JSON.parse(new TextDecoder().decode(buf));
+        if(j && j.url) url = j.url;
+      }
+      __coverCache.set(key, url);
+      return url;
+    }catch(e){
+      __coverCache.set(key, u);   // 解析失败也缓存原 API 地址,避免反复重试浪费 API
+      return u;
+    }
+  }
+  async function setCoverImg(el, track, size){
+    if(!el) return;
+    if(!track || !track.pic_id){ el.style.visibility = "hidden"; return; }
+    try{ el.src = await resolveCoverURL(track, size); el.style.visibility = "visible"; }
+    catch(e){ el.style.visibility = "hidden"; }
+  }
+  // 缩略图加载失败时的兜底:重新解析真实图片地址
+  window.__fixCov = async function(img, pic_id, source){
+    try{ img.onerror = null; img.src = await resolveCoverURL({pic_id:pic_id, source:source}, 300); }
+    catch(e){ img.style.visibility = "hidden"; }
+  };
   async function resolveURL(track){
     const u = apiURL({types:"url", source:track.source, id:track.id, br:state.br});
     const d = await fetchJSON(u);
     if(d && d.url) return d.url;
     throw new Error("该音源未返回可播放链接");
   }
-  async function searchRaw(name, {album=false, pages=1}={}){
-    const src = state.source + (album ? "_album" : "");
-    let items = [];
-    for(let p=1; p<=pages; p++){
-      const u = apiURL({types:"search", source:src, name, count:state.count, pages:p});
-      const d = await fetchJSON(u);
-      const arr = normList(d).map(normTrack).filter(Boolean);
-      if(!arr.length) break;
-      items = items.concat(arr);
-      if(arr.length < state.count) break;
+  // 多音源兜底:某音源限流/无结果时自动换下一个,避免"明明有这歌手却提示未找到"
+  const ARTIST_SOURCES = ["netease","tencent","kugou","migu","baidu"];
+  function sleep(ms){ return new Promise(r=> setTimeout(r, ms)); }
+  // GD 接口限流时常返回 200 + {code:-1,msg:"请求过于频繁"},这里识别出来以便重试/换源
+  function isRateLimited(d){
+    if(!d || typeof d !== "object") return false;
+    const msg = [d.msg, d.message, d.error, d.info].filter(Boolean).map(String).join(" ");
+    if(/limit|频繁|too many|rate|try again|稍后|被限|访问过于|frequency|请求过快|过快/i.test(msg)) return true;
+    if(d.code != null){
+      const c = Number(d.code);
+      if(c === -1 || c === 401 || c === 403 || c === 429) return true;
     }
-    return items;
+    return false;
+  }
+  // 单页搜索(带重试退避):限流/网络错误抛出(调用方据此换音源);成功但空返回 [];成功有数据返回数组
+  async function fetchSearchPageRetry(u, tries=3){
+    let lastErr;
+    for(let i=0;i<tries;i++){
+      let d;
+      try{ d = await fetchJSON(u); }
+      catch(e){ lastErr = e; await sleep(700*(i+1)); continue; }
+      if(isRateLimited(d)){ lastErr = new Error("接口限流,请稍后重试"); await sleep(900*(i+1)); continue; }
+      return normList(d).map(normTrack).filter(Boolean);
+    }
+    throw lastErr || new Error("搜索失败");
+  }
+  async function searchRaw(name, {album=false, pages=1, sources=null}={}){
+    const srcList = sources || [state.source];
+    let anyError = false;
+    for(const base of srcList){
+      const src = base + (album ? "_album" : "");
+      let items = [];
+      for(let p=1; p<=pages; p++){
+        const u = apiURL({types:"search", source:src, name, count:state.count, pages:p});
+        let arr;
+        try{ arr = await fetchSearchPageRetry(u); }
+        catch(e){ arr = null; anyError = true; }
+        if(arr === null) break;        // 该音源出错 -> 换下一个音源
+        if(!arr.length) break;         // 该音源确实没有 -> 换下一个音源再试
+        items = items.concat(arr);
+        if(arr.length < state.count) break;
+      }
+      if(items.length) return items;   // 任一音源命中即返回
+    }
+    if(anyError) throw new Error("搜索失败(可能接口限流),请稍后重试");
+    return [];
   }
 
   /* ---------- Toast ---------- */
@@ -519,13 +707,17 @@
   }
   function rowHTML(track, idx, ctx, isQueue){
     const playing = !isQueue && state.queue[state.current] === track;
-    const cov = track.pic_id ? `<img class="cov" src="${picURL(track,300)}" alt="" onerror="this.style.visibility='hidden'">` : `<div class="cov"></div>`;
+    // 封面不再直接把 <img src> 指向 API(否则每次重渲染都重新打 types=pic 浪费 API);
+    // 改为占位 + 渲染后用缓存的缓存地址异步填充(paintCovers)。
+    const cov = track.pic_id
+      ? `<img class="cov" data-pic="${escapeAttr(track.pic_id)}" data-source="${escapeAttr(track.source)}" data-size="300" alt="" onerror="this.style.visibility='hidden'">`
+      : `<div class="cov"></div>`;
     const idxCell = playing
       ? `<div class="idx play"><div class="eq"><i></i><i></i><i></i></div></div>`
       : `<div class="idx">${isQueue ? (idx+1) : (idx+1)}</div>`;
     const albumLink = track.album ? `<span class="link" data-album="${escapeAttr(track.album)}">${escapeHtml(track.album)}</span>` : "—";
     const artistLink = track.artist ? `<span class="link" data-artist="${escapeAttr(track.artist)}">${escapeHtml(track.artist)}</span>` : "未知";
-    return `<div class="row ${playing?'playing':''}" data-idx="${idx}" data-ctx="${ctx}">
+    return `<div class="row ${playing?'playing':''}" data-idx="${idx}" data-ctx="${ctx}" data-key="${escapeAttr(track.source+':'+track.id)}">
       ${idxCell}
       ${cov}
       <div class="meta">
@@ -535,8 +727,23 @@
       <div class="acts">
         <button class="mini" data-act="play" title="播放"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
         <button class="mini" data-act="add" title="加入队列"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="mini" data-act="more" title="更多操作（下载 / 做壁纸）"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
       </div>
     </div>`;
+  }
+  // 渲染列表后,用缓存的封面地址异步填充所有占位封面(命中缓存则不打 API)
+  function paintCovers(container){
+    if(!container) return;
+    container.querySelectorAll('img.cov[data-pic]').forEach(img=>{
+      const pic = img.getAttribute('data-pic'), src = img.getAttribute('data-source'), sz = img.getAttribute('data-size')||300;
+      paintCover(img, { pic_id: pic, source: src }, parseInt(sz,10));
+    });
+  }
+  async function paintCover(el, track, size){
+    if(!el) return;
+    if(!track || !track.pic_id){ el.style.visibility = "hidden"; return; }
+    try{ el.src = await resolveCoverURL(track, size); el.style.visibility = "visible"; }
+    catch(e){ el.style.visibility = "hidden"; }
   }
   function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
   function escapeAttr(s){ return escapeHtml(s); }
@@ -550,6 +757,8 @@
     }
     $("searchEmpty").style.display = "none";
     list.innerHTML = state.lastResults.map((t,i)=> rowHTML(t, i, "search", false)).join("");
+    paintCovers(list);
+    updateNowPlaying();
   }
   function renderPlaylist(){
     const list = $("playlistList");
@@ -561,6 +770,26 @@
     }
     $("plEmpty").style.display = "none";
     list.innerHTML = state.queue.map((t,i)=> rowHTML(t, i, "queue", true)).join("");
+    paintCovers(list);
+    updateNowPlaying();
+  }
+  /* 只更新「正在播放」高亮,不重建 DOM、不重抓封面 —— 切歌/上一首/下一首/播放结束都用它 */
+  function updateNowPlaying(){
+    const cur = state.queue[state.current];
+    const key = cur ? (cur.source + ":" + cur.id) : "";
+    document.querySelectorAll("#resultList .row, #playlistList .row, #plsList .row").forEach(row=>{
+      const on = key && row.getAttribute("data-key") === key;
+      row.classList.toggle("playing", !!on);
+      const idxCell = row.querySelector(".idx");
+      if(!idxCell) return;
+      if(on && !idxCell.classList.contains("play")){
+        idxCell.className = "idx play";
+        idxCell.innerHTML = '<div class="eq"><i></i><i></i><i></i></div>';
+      } else if(!on && idxCell.classList.contains("play")){
+        idxCell.className = "idx";
+        idxCell.textContent = (parseInt(row.getAttribute("data-idx"),10) + 1);
+      }
+    });
   }
 
   /* ---------- Playback ---------- */
@@ -574,10 +803,11 @@
       if(i >= 0) state.current = i;
     }
     const t = state.queue[state.current];
-    renderResults(); renderPlaylist();
+    // 仅更新「正在播放」高亮,不再重建整个列表(否则会重抓所有封面、浪费 API)
+    updateNowPlaying();
     $("npName").textContent = t.name;
     $("npArtist").textContent = t.artist || "未知";
-    if(t.pic_id){ $("npCov").src = picURL(t,500); $("npCov").style.visibility="visible"; }
+    if(t.pic_id){ setCoverImg($("npCov"), t, 500); }
     else { $("npCov").style.visibility="hidden"; }
     loadLyric(t);
     toast("加载音频中…");
@@ -596,12 +826,117 @@
     if(!list.length){ toast("没有找到结果", "err"); return; }
     state.queue = list;
     state.current = startIndex || 0;
+    renderPlaylist();   // 队列内容变了,重渲染一次(封面走缓存,不重复打 API)
     playTrack(state.queue[state.current]);
   }
+  /* ---------- Playlists (歌单) ---------- */
+  function loadPlaylists(){
+    try{ const s = localStorage.getItem("gd_playlists"); if(s) return JSON.parse(s) || {}; }catch(e){}
+    return {};
+  }
+  function savePlaylists(){
+    try{ localStorage.setItem("gd_playlists", JSON.stringify(state.playlists)); }catch(e){}
+  }
+  function addToPlaylist(name, track){
+    if(!name) return;
+    if(!state.playlists[name]) state.playlists[name] = [];
+    const arr = state.playlists[name];
+    const key = track.source + ":" + track.id;
+    if(arr.some(t=> (t.source+":"+t.id) === key)){ toast("已在歌单「"+name+"」中", "ok"); return; }
+    arr.push(track);
+    savePlaylists();
+    renderPlaylists();
+    toast("已加入歌单「"+name+"」", "ok");
+  }
+  function removeFromPlaylist(name, idx){
+    const arr = state.playlists[name]; if(!arr) return;
+    arr.splice(idx,1);
+    if(!arr.length){ delete state.playlists[name]; if(state.activePlaylist===name) state.activePlaylist=null; }
+    savePlaylists();
+    renderPlaylists();
+  }
+  function renderPlaylists(){
+    const names = Object.keys(state.playlists);
+    $("plsCount").textContent = names.length;
+    const sel = $("plSelect");
+    if(!state.activePlaylist || !state.playlists[state.activePlaylist]) state.activePlaylist = names[0] || null;
+    sel.innerHTML = names.map(n=>`<option value="${escapeAttr(n)}">${escapeHtml(n)} (${state.playlists[n].length})</option>`).join("");
+    if(state.activePlaylist) sel.value = state.activePlaylist;
+    if(!names.length){
+      $("plsEmpty").style.display = "";
+      $("plsList").innerHTML = "";
+      return;
+    }
+    $("plsEmpty").style.display = "none";
+    const list = state.playlists[state.activePlaylist] || [];
+    $("plsList").innerHTML = list.map((t,i)=> rowHTML(t, i, "playlists", false)).join("");
+    paintCovers($("plsList"));
+    updateNowPlaying();
+  }
+  function openPlModal(track){
+    menuTrack = track;
+    const list = $("plPickList");
+    const names = Object.keys(state.playlists);
+    list.innerHTML = names.map(n=>`<div class="pl-pick" data-name="${escapeAttr(n)}"><span>${escapeHtml(n)}</span><span class="cnt">${state.playlists[n].length} 首</span></div>`).join("");
+    list.querySelectorAll(".pl-pick").forEach(el=> el.addEventListener("click", ()=>{
+      addToPlaylist(el.dataset.name, menuTrack);
+      closePlModal();
+    }));
+    $("plNewName").value = "";
+    $("plModal").classList.add("show");
+  }
+  function closePlModal(){ $("plModal").classList.remove("show"); }
+
   function setPlayIcon(playing){
     $("playIcon").innerHTML = playing
       ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
       : '<path d="M8 5v14l11-7z"/>';
+  }
+
+  /* ---------- Play mode (顺序 / 随机 / 单曲循环) ---------- */
+  const MODE_META = {
+    sequence:{label:"顺序", cls:"", title:"顺序播放"},
+    shuffle:{label:"随机", cls:"m-shuffle", title:"随机播放"},
+    one:{label:"单曲", cls:"m-one", title:"单曲循环"}
+  };
+  const MODE_ORDER = ["sequence","shuffle","one"];
+  function setPlayMode(m){
+    if(!MODE_META[m]) m = "sequence";
+    state.playMode = m;
+    try{ localStorage.setItem("gd_playMode", m); }catch(e){}
+    const b = $("playModeBtn");
+    if(b){
+      b.textContent = MODE_META[m].label;
+      b.className = "mode-btn " + MODE_META[m].cls;
+      b.title = "播放模式：" + MODE_META[m].title + "（点击切换）";
+    }
+  }
+  function cyclePlayMode(){
+    const i = MODE_ORDER.indexOf(state.playMode);
+    setPlayMode(MODE_ORDER[(i+1) % MODE_ORDER.length]);
+    toast("播放模式：" + MODE_META[state.playMode].label, "ok");
+  }
+  function nextIndex(){
+    const n = state.queue.length;
+    if(n === 0) return -1;
+    if(state.playMode === "one") return state.current;
+    if(state.playMode === "shuffle"){
+      if(n === 1) return 0;
+      let r; do { r = Math.floor(Math.random()*n); } while(r === state.current);
+      return r;
+    }
+    return state.current + 1 < n ? state.current + 1 : -1; // 顺序：到末尾停止(-1)
+  }
+  function prevIndex(){
+    const n = state.queue.length;
+    if(n === 0) return -1;
+    if(state.playMode === "one") return state.current;
+    if(state.playMode === "shuffle"){
+      if(n === 1) return 0;
+      let r; do { r = Math.floor(Math.random()*n); } while(r === state.current);
+      return r;
+    }
+    return state.current - 1 >= 0 ? state.current - 1 : -1;
   }
 
   /* ---------- Lyrics ---------- */
@@ -671,7 +1006,7 @@
   // 切歌 / 打开歌词面板时，同步刷新面板头（封面 / 标题 / 歌手）
   function updateLyricHead(track){
     const cov = $("lyricCov");
-    if(track && track.pic_id){ cov.src = picURL(track,500); cov.style.visibility="visible"; }
+    if(track && track.pic_id){ setCoverImg(cov, track, 500); }   // 走缓存,避免每次切歌/开面板都打 types=pic
     else { cov.style.visibility="hidden"; }
     $("lyricTitle").textContent = (track && track.name) || "歌词";
     $("lyricArtist").textContent = (track && track.artist) || "—";
@@ -770,7 +1105,7 @@
       }
       return out;
     },
-    version: "1.1"
+    version: "1.2"
   });
   function renderLyricBox(){
     const box = $("lyricBox");
@@ -789,11 +1124,22 @@
     if(idx === state.lyricIndex) return;
     state.lyricIndex = idx;
     const box = $("lyricBox");
-    const lines = box.querySelectorAll(".lyric-line");
+    const lines = box ? box.querySelectorAll(".lyric-line") : [];
     lines.forEach(l=> l.classList.remove("active"));
     if(idx >= 0 && lines[idx]){
       lines[idx].classList.add("active");
-      lines[idx].scrollIntoView({block:"center", behavior:"smooth"});
+      // 仅当歌词面板真正可见时才滚动:隐藏(display:none)容器调 scrollIntoView 会抛错,
+      // 一旦抛错会中断后面 updateFloatLyric / postLyric,导致歌词系统卡死。包 try/catch 兜底。
+      try{
+        if($("lyricPanel") && $("lyricPanel").classList.contains("show")){
+          lines[idx].scrollIntoView({block:"center", behavior:"smooth"});
+        }
+      }catch(e){ /* 容器不可见,忽略滚动 */ }
+    }
+    updateFloatLyric();
+    if(idx >= 0 && state.lyrics[idx]){
+      const l = state.lyrics[idx];
+      postLyric(l.orig, l.trans);
     }
   }
 
@@ -829,7 +1175,7 @@
     if(!name) return;
     toast("加载歌手「"+name+"」歌曲中…");
     try{
-      const list = await searchRaw(name, {pages:3});
+      const list = await searchRaw(name, {pages:3, sources: ARTIST_SOURCES});
       if(!list.length){ toast("未找到该歌手歌曲", "err"); return; }
       // 去重（同一 id 只保留一次）
       const seen = {}, uniq = [];
@@ -847,7 +1193,7 @@
     if(!name){ toast("请先在上方输入歌手名", "err"); return; }
     toast("正在收集《" + name + "》的全部专辑…");
     try{
-      const list = await searchRaw(name, {pages:8});
+      const list = await searchRaw(name, {pages:8, sources: ARTIST_SOURCES});
       if(!list.length){ toast("未找到该歌手", "err"); return; }
       // 去重：按 pic_id（封面唯一）聚合专辑
       const seen = {}, albums = [];
@@ -858,12 +1204,19 @@
         if(!seen[key]){ seen[key] = 1; albums.push({ name: t.album || "(未知专辑)", artist: t.artist || name, pic_id: pid, source: t.source }); }
       });
       if(!albums.length){ toast("没有可用的专辑封面", "err"); return; }
-      toast("找到 " + albums.length + " 张专辑，开始下载封面…");
+      // —— 一体化:优先让桌面壁纸软件自动配置(与 INS 一样参与轮播) ——
+      const covers = albums.map(a => ({ pic_id: a.pic_id, album: a.name }));
+      if(await postCover(name, state.source, covers, "all")){
+        toast("已加入 " + albums.length + " 张专辑封面到壁纸(自动配置,与 INS 一样参与轮播)", "ok");
+        return;
+      }
+      // 回退:本地服务未连接,改为直接下载封面 + 导出清单(手动导入)
+      toast("本地服务未连接,改为直接下载封面…");
       let ok = 0, fail = 0;
       for(const a of albums){
         const fname = (a.artist + " - " + a.name).replace(/[\\/:*?"<>|]/g, "_").slice(0, 80) + ".jpg";
         try{
-          const url = picURL(a, 500);
+          const url = await resolveCoverURL(a, 500);
           const fetchUrl = state.proxy ? state.proxy + encodeURIComponent(url) : url;
           const res = await fetch(fetchUrl);
           if(!res.ok) throw new Error("HTTP " + res.status);
@@ -893,10 +1246,282 @@
     }catch(e){ toast(e.message || "下载失败", "err"); }
   }
 
+  /* ================= 下载歌曲 / 烧录 / 做壁纸 ================= */
+  let burnName = "";
+  let menuTrack = null;
+  let menuCtx = "search";
+
+  async function fetchArrayBuffer(url){
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    return new Uint8Array(await res.arrayBuffer());
+  }
+  function triggerDownload(blob, filename){
+    const obj = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = obj; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(obj), 5000);
+  }
+  function resolveURLRaw(track){
+    return resolveURL(track);
+  }
+
+  // ---- 极简 ID3v2.3 写入（MP3 封面 APIC + 歌词 USLT + 标题/歌手/专辑） ----
+  function synchsafe(n){ return [ (n>>>21)&0x7f, (n>>>14)&0x7f, (n>>>7)&0x7f, n&0x7f ]; }
+  function utf8Bytes(s){ return new TextEncoder().encode(s); }
+  function isoBytes(s){ const o=[]; for(let i=0;i<s.length;i++) o.push(s.charCodeAt(i)&0xff); return new Uint8Array(o); }
+  function concatBytes(arrs){ let n=0; arrs.forEach(a=> n+=a.length); const out=new Uint8Array(n); let o=0; arrs.forEach(a=>{ out.set(a,o); o+=a.length; }); return out; }
+  function makeFrame(id, body){
+    const head = new Uint8Array(10);
+    for(let i=0;i<4;i++) head[i]=id.charCodeAt(i);
+    const sz = body.length;
+    head[4]=(sz>>>24)&0xff; head[5]=(sz>>>16)&0xff; head[6]=(sz>>>8)&0xff; head[7]=sz&0xff;
+    const out = new Uint8Array(10+sz); out.set(head,0); out.set(body,10); return out;
+  }
+  function frameText(s){ const b=utf8Bytes(s); const o=new Uint8Array(1+b.length); o[0]=0x03; o.set(b,1); return o; }
+  function frameUSLT(s){ const b=utf8Bytes(s); const o=new Uint8Array(1+3+1+b.length); o[0]=0x03; o[1]=0x65;o[2]=0x6e;o[3]=0x67; o[4]=0x00; o.set(b,5); return o; }
+  function frameAPIC(bytes){
+    const isPng = bytes.length>4 && bytes[0]===0x89 && bytes[1]===0x50 && bytes[2]===0x4e && bytes[3]===0x47;
+    const mime = isoBytes((isPng?"image/png":"image/jpeg") + "\u0000");
+    const enc = new Uint8Array([0x00]);   // 描述用 latin1
+    const ptype = new Uint8Array([0x03]);  // 封面（正面）
+    const desc = new Uint8Array([0x00]);
+    const head = concatBytes([enc, mime, ptype, desc]);
+    const out = new Uint8Array(head.length + bytes.length);
+    out.set(head,0); out.set(bytes, head.length); return out;
+  }
+  function embedID3(audioBlob, meta){
+    const frames = [];
+    if(meta.title)  frames.push(makeFrame("TIT2", frameText(meta.title)));
+    if(meta.artist) frames.push(makeFrame("TPE1", frameText(meta.artist)));
+    if(meta.album)  frames.push(makeFrame("TALB", frameText(meta.album)));
+    if(meta.lyric)  frames.push(makeFrame("USLT", frameUSLT(meta.lyric)));
+    if(meta.cover)  frames.push(makeFrame("APIC", frameAPIC(meta.cover)));
+    if(!frames.length) return null;
+    let total=0; frames.forEach(f=> total+=f.length);
+    const body = new Uint8Array(total); let off=0; frames.forEach(f=>{ body.set(f,off); off+=f.length; });
+    const ss = synchsafe(total);
+    const header = new Uint8Array(10);
+    header[0]=0x49;header[1]=0x44;header[2]=0x33; header[3]=3; header[4]=0; header[5]=0;
+    header[6]=ss[0];header[7]=ss[1];header[8]=ss[2];header[9]=ss[3];
+    const tag = new Uint8Array(10+total); tag.set(header,0); tag.set(body,10);
+    return new Blob([tag, audioBlob], { type: audioBlob.type || "audio/mpeg" });
+  }
+
+  async function buildTaggedAudio(track, burn){
+    const url = await resolveURL(track);
+    const audioBuf = await fetchArrayBuffer(state.proxy ? state.proxy + encodeURIComponent(url) : url);
+    if(!burn) return new Blob([audioBuf], { type:"audio/mpeg" });
+    let coverBytes=null, lyricMeta=null;
+    try{ if(track.pic_id){ const cu=picURL(track,500); coverBytes = await fetchArrayBuffer(state.proxy ? state.proxy+encodeURIComponent(cu) : cu); } }catch(e){ console.warn("cover fetch failed", e); }
+    try{ const lu=apiURL({types:"lyric", source:track.source, id:track.lyric_id}); lyricMeta = await fetchJSON(lu); }catch(e){}
+    const tagged = embedID3(new Blob([audioBuf]), {
+      title: track.name, artist: track.artist, album: track.album,
+      cover: coverBytes,
+      lyric: lyricMeta ? (lyricMeta.lyric||"") : "",
+      tlyric: lyricMeta ? (lyricMeta.tlyric||"") : ""
+    });
+    return tagged || new Blob([audioBuf]);
+  }
+  function safeName(s){ return String(s).replace(/[\\/:*?"<>|]/g, "_"); }
+
+  async function downloadSong(track, burn){
+    updateDLProgress(0, 1, "下载《"+track.name+"》中…");
+    try{
+      const blob = await buildTaggedAudio(track, burn);
+      triggerDownload(blob, safeName(track.artist+" - "+track.name)+".mp3");
+      hideDLProgress();
+      toast("已下载《"+track.name+"》"+(burn?"（已烧录歌词+封面）":""), "ok");
+    }catch(e){
+      hideDLProgress();
+      toast("下载失败："+e.message+"（跨域请到设置填 CORS 代理）", "err");
+    }
+  }
+  async function downloadAlbum(name){
+    name = (name||"").trim(); if(!name) return;
+    updateDLProgress(0, 1, "收集专辑《"+name+"》中…");
+    try{
+      const list = await searchRaw(name, {album:true, pages:1});
+      if(!list.length){ hideDLProgress(); toast("未找到该专辑", "err"); return; }
+      updateDLProgress(0, list.length, "专辑《"+name+"》");
+      let ok=0, fail=0;
+      for(const t of list){
+        try{ const b=await buildTaggedAudio(t,false); triggerDownload(b, safeName(t.artist+" - "+t.name)+".mp3"); ok++; }
+        catch(e){ fail++; }
+        updateDLProgress(ok+fail, list.length, "专辑《"+name+"》");
+      }
+      hideDLProgress();
+      toast("专辑下载完成 "+ok+" 首"+(fail?("，"+fail+" 首失败"):""), ok?"ok":"err");
+    }catch(e){ hideDLProgress(); toast(e.message, "err"); }
+  }
+  async function downloadArtistSongs(name, burn){
+    name = (name||"").trim(); if(!name) return;
+    updateDLProgress(0, 1, "收集「"+name+"」全部歌曲中…");
+    try{
+      const list = await searchRaw(name, {pages:8, sources: ARTIST_SOURCES});
+      if(!list.length){ hideDLProgress(); toast("未找到该歌手", "err"); return; }
+      const seen={}, uniq=[];
+      list.forEach(t=>{ if(!seen[t.id]){ seen[t.id]=1; uniq.push(t); } });
+      updateDLProgress(0, uniq.length, "歌手「"+name+"」");
+      let ok=0, fail=0;
+      for(const t of uniq){
+        try{ const b=await buildTaggedAudio(t,burn); triggerDownload(b, safeName(t.artist+" - "+t.name)+".mp3"); ok++; }
+        catch(e){ fail++; }
+        updateDLProgress(ok+fail, uniq.length, "歌手「"+name+"」");
+      }
+      hideDLProgress();
+      toast("歌手歌曲下载完成 "+ok+" 首"+(burn?"（已烧录歌词+封面）":"")+(fail?("，"+fail+" 首失败"):""), ok?"ok":"err");
+    }catch(e){ hideDLProgress(); toast(e.message, "err"); }
+  }
+  // 一体化:把封面交给桌面壁纸软件的本地服务(/add_cover),由软件自动下载并配置成壁纸来源。
+  // 服务由 InsWallpaper 在打开播放器时自启(http://127.0.0.1:端口/music.html),故可用相对路径。
+  // 返回 true=已一体化配置;false=服务未连接(调用方应回退为直接下载)。
+  async function postCover(artist, source, covers, mode){
+    try{
+      const res = await fetch("/add_cover", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ artist, source, mode, covers })
+      });
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const j = await res.json().catch(()=>({ok:true}));
+      if(j && j.ok){
+        toast("已加入壁纸(自动配置):"+artist+" 共 "+covers.length+" 张封面", "ok");
+        return true;
+      }
+      throw new Error("服务返回失败");
+    }catch(e){
+      return false;   // 服务未连接 -> 回退下载模式
+    }
+  }
+  // 把当前播放的歌词行推给壁纸 App 的「桌面歌词」置顶窗(POST /lyric)。
+  // 文档(README/扩展点)里的 gdplayer:lyric 钩子仍保留;这里额外用本地服务
+  // 把歌词喂给 App 端的桌面歌词窗口,实现「永远悬浮在桌面最上层」的歌词。
+  let _lastLyricKey = "";
+  async function postLyric(line, trans){
+    const key = (line||"") + "|" + (trans||"");
+    if(key === _lastLyricKey) return;   // 去重,避免每帧重复 POST
+    _lastLyricKey = key;
+    // 悬浮歌词关闭时:通知 App 端隐藏桌面歌词窗口,并停止推送
+    if(!state.floatLyricOn){
+      try{
+        await fetch("/lyric", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ line:"", trans:"" })
+        });
+      }catch(e){ /* 服务未连接时静默 */ }
+      return;
+    }
+    try{
+      await fetch("/lyric", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ line: line || "", trans: trans || "" })
+      });
+    }catch(e){ /* 服务未连接时静默 */ }
+  }
+  // 关闭播放 / 播完时清掉桌面悬浮歌词。用 sendBeacon 保证页面卸载(关窗口)也能送达 App。
+  function clearDeskLyric(){
+    _lastLyricKey = "";
+    const payload = JSON.stringify({ line:"", trans:"" });
+    try{
+      if(navigator.sendBeacon) navigator.sendBeacon("/lyric", new Blob([payload], {type:"application/json"}));
+    }catch(e){}
+    try{
+      fetch("/lyric", { method:"POST", headers:{"Content-Type":"application/json"}, body:payload, keepalive:true }).catch(()=>{});
+    }catch(e){}
+  }
+  // 桌面壁纸背景同步:从本地服务 /current_wallpaper 取当前桌面壁纸,设为页面背景。
+  async function fetchWallpaperBG(){
+    try{
+      const r = await fetch("/current_wallpaper");
+      const j = await r.json();
+      if(j && j.wallpaper){ applyWallpaperBG(j.wallpaper); }
+    }catch(e){ /* 服务未连接或暂无壁纸时静默,保留渐变背景 */ }
+  }
+  function applyWallpaperBG(url){
+    const el = document.getElementById("bgLayer");
+    if(el && url) el.style.backgroundImage = "url('" + url.replace(/'/g,"%27") + "')";
+  }
+  // 下载进度条
+  let _dlHideTimer = null;
+  function updateDLProgress(done, total, label){
+    if(_dlHideTimer){ clearTimeout(_dlHideTimer); _dlHideTimer = null; }
+    const p = total > 0 ? Math.min(100, Math.round(done/total*100)) : 0;
+    const box = document.getElementById("dlProgress");
+    const fill = document.getElementById("dlFill");
+    const txt = document.getElementById("dlTxt");
+    if(!box) return;
+    box.classList.add("show");
+    if(fill) fill.style.width = p + "%";
+    if(txt) txt.textContent = (label ? label + "  " : "") + p + "%";
+  }
+  function hideDLProgress(){
+    const box = document.getElementById("dlProgress");
+    if(!box) return;
+    _dlHideTimer = setTimeout(()=>{ box.classList.remove("show"); }, 600);
+  }
+  async function addCoverWallpaper(track){
+    if(!track.pic_id){ toast("该歌曲无可用封面", "err"); return; }
+    const covers = [{ pic_id: track.pic_id, album: track.album || "" }];
+    if(await postCover(track.artist, track.source, covers, "single")) return;
+    // 回退:服务没起时,下载到本地 + 导出清单(手动导入)
+    try{
+      const url = await resolveCoverURL(track, 500);
+      const bytes = await fetchArrayBuffer(state.proxy ? state.proxy+encodeURIComponent(url) : url);
+      const fn = "album_"+track.pic_id+".jpg";   // 与壁纸 App 命名规则一致
+      triggerDownload(new Blob([bytes], {type:"image/jpeg"}), fn);
+      const manifest = {
+        artist: track.artist, source: track.source, single:true, generatedAt: Date.now(),
+        albums: [{ name: track.album||"(未知专辑)", artist: track.artist, pic_id: track.pic_id, source: track.source }]
+      };
+      triggerDownload(new Blob([JSON.stringify(manifest,null,2)], {type:"application/json"}),
+                      safeName(track.artist+" - 单曲封面清单(可导入壁纸软件)")+".json");
+      toast("已下载该封面做壁纸（"+fn+"），服务未连接,请在壁纸软件点「导入该歌手专辑」", "ok");
+    }catch(e){ toast("封面下载失败："+e.message, "err"); }
+  }
+  function askBurn(name){ burnName = name; $("burnModal").classList.add("show"); }
+  function openRowMenu(track, btn, ctx){
+    menuTrack = track;
+    menuCtx = ctx || "search";
+    const m = $("rowMenu");
+    let html =
+      '<button class="mi" data-do="song"><span class="ic">⬇</span> 下载这首歌曲</button>'+
+      '<button class="mi" data-do="album"><span class="ic">💿</span> 下载整张专辑</button>'+
+      '<button class="mi" data-do="artist"><span class="ic">🎤</span> 下载该歌手全部歌曲</button>'+
+      '<div class="sep"></div>'+
+      '<button class="mi" data-do="addpl"><span class="ic">➕</span> 添加到歌单</button>'+
+      '<button class="mi" data-do="wall1"><span class="ic">🖼</span> 加此封面做壁纸</button>'+
+      '<button class="mi" data-do="wallAll"><span class="ic">🖼</span> 加全部专辑封面做壁纸</button>';
+    if(menuCtx === "playlists"){
+      html += '<div class="sep"></div><button class="mi" data-do="rmpl"><span class="ic">🗑</span> 从歌单移除</button>';
+    }
+    m.innerHTML = html;
+    const r = btn.getBoundingClientRect();
+    let left = r.right - 228; if(left < 8) left = 8;
+    m.style.top = (r.bottom + 8) + "px";
+    m.style.left = left + "px";
+    m.classList.add("show");
+  }
+  function closeRowMenu(){ $("rowMenu").classList.remove("show"); }
+
+  function updateFloatLyric(){
+    const fl = $("floatLyric");
+    if(!state.floatLyricOn || state.lyricIndex < 0 || !state.lyrics[state.lyricIndex]){
+      fl.classList.remove("show"); return;
+    }
+    const l = state.lyrics[state.lyricIndex];
+    fl.innerHTML = escapeHtml(l.orig) + (l.trans ? '<span class="tr">'+escapeHtml(l.trans)+'</span>' : "");
+    fl.classList.add("show");
+  }
+
   function switchView(v){
     document.querySelectorAll(".tab[data-view]").forEach(t=> t.classList.toggle("active", t.dataset.view===v));
     $("view-search").style.display = v==="search" ? "" : "none";
     $("view-playlist").style.display = v==="playlist" ? "" : "none";
+    $("view-playlists").style.display = v==="playlists" ? "" : "none";
   }
 
   /* ---------- Event binding ---------- */
@@ -915,9 +1540,18 @@
       const actBtn = e.target.closest(".mini");
       if(actBtn){
         const act = actBtn.dataset.act;
+        if(act === "more"){
+          const tk = ctx==="queue" ? state.queue[idx] : (ctx==="playlists" ? state.playlists[state.activePlaylist][idx] : state.lastResults[idx]);
+          openRowMenu(tk, actBtn, ctx); return;
+        }
         if(ctx === "queue"){
           if(act === "play") playTrack(state.queue[idx], state.queue, idx);
           else if(act === "add"){ /* already in queue */ }
+        } else if(ctx === "playlists"){
+          const pl = state.playlists[state.activePlaylist] || [];
+          const track = pl[idx];
+          if(act === "play") enqueueAndPlay(pl, idx);
+          else if(act === "add"){ state.queue.push(track); renderPlaylist(); toast("已加入队列", "ok"); }
         } else {
           const track = state.lastResults[idx];
           if(act === "play") enqueueAndPlay(state.lastResults, idx);
@@ -927,6 +1561,7 @@
       }
       // 点击行本身 = 播放
       if(ctx === "queue") playTrack(state.queue[idx], state.queue, idx);
+      else if(ctx === "playlists"){ const pl = state.playlists[state.activePlaylist] || []; if(pl[idx]) enqueueAndPlay(pl, idx); }
       else enqueueAndPlay(state.lastResults, idx);
     });
   }
@@ -965,12 +1600,12 @@
       if(audio.paused){ audio.play().then(()=>setPlayIcon(true)).catch(()=>{}); }
       else { audio.pause(); setPlayIcon(false); }
     });
-    $("prevBtn").addEventListener("click", ()=>{ if(state.current>0) playTrack(state.queue[state.current-1], state.queue, state.current-1); });
-    $("nextBtn").addEventListener("click", ()=>{ if(state.current<state.queue.length-1) playTrack(state.queue[state.current+1], state.queue, state.current+1); });
+    $("prevBtn").addEventListener("click", ()=>{ const i = prevIndex(); if(i >= 0) playTrack(state.queue[i], state.queue, i); });
+    $("nextBtn").addEventListener("click", ()=>{ const i = nextIndex(); if(i >= 0) playTrack(state.queue[i], state.queue, i); });
 
     audio.addEventListener("play", ()=> setPlayIcon(true));
     audio.addEventListener("pause", ()=> setPlayIcon(false));
-    audio.addEventListener("ended", ()=>{ if(state.current<state.queue.length-1) playTrack(state.queue[state.current+1], state.queue, state.current+1); else setPlayIcon(false); });
+    audio.addEventListener("ended", ()=>{ const i = nextIndex(); if(i >= 0) playTrack(state.queue[i], state.queue, i); else { setPlayIcon(false); clearDeskLyric(); } });
     audio.addEventListener("timeupdate", ()=>{
       const cur = audio.currentTime, dur = audio.duration || 0;
       $("curTime").textContent = fmtTime(cur);
@@ -981,6 +1616,9 @@
       syncLyric();
     });
     audio.addEventListener("loadedmetadata", ()=>{ $("durTime").textContent = fmtTime(audio.duration); });
+    // 关闭播放器窗口(Ede 应用模式 X)/刷新/跳走时,清掉桌面悬浮歌词
+    window.addEventListener("pagehide", clearDeskLyric);
+    window.addEventListener("beforeunload", clearDeskLyric);
 
     // seek
     $("seek").addEventListener("click", e=>{
@@ -1032,7 +1670,91 @@
       toast("设置已保存", "ok");
     });
 
-    renderResults(); renderPlaylist();
+    // 桌面壁纸背景同步(本地服务 /current_wallpaper,每 3 秒刷新一次)
+    fetchWallpaperBG();
+    setInterval(fetchWallpaperBG, 3000);
+
+    // 「字体同步到网页」:读取软件 /appcfg 的 uiFont,把歌词同款字体应用到整个播放器
+    fetch("/appcfg").then(r => r.json()).then(d => {
+      if (d && d.uiFont) {
+        const fam = d.uiFont.replace(/"/g, "");
+        const st = document.createElement("style");
+        st.textContent = '*{font-family:"' + fam + '" !important}';
+        document.head.appendChild(st);
+      }
+    }).catch(() => {});
+
+    // ── 行菜单 / 烧录弹窗 / 悬浮歌词 绑定 ──
+    $("rowMenu").addEventListener("click", e=>{
+      const b = e.target.closest(".mi"); if(!b || !menuTrack) return;
+      const do_ = b.dataset.do;
+      if(do_==="song") downloadSong(menuTrack, false);
+      else if(do_==="album") downloadAlbum(menuTrack.album);
+      else if(do_==="artist") askBurn(menuTrack.artist);
+      else if(do_==="wall1") addCoverWallpaper(menuTrack);
+      else if(do_==="wallAll") downloadArtistAlbums(menuTrack.artist);
+      else if(do_==="addpl"){ closeRowMenu(); openPlModal(menuTrack); return; }
+      else if(do_==="rmpl"){ closeRowMenu(); if(state.activePlaylist!=null){ const ix = state.playlists[state.activePlaylist].indexOf(menuTrack); if(ix>=0) removeFromPlaylist(state.activePlaylist, ix); } return; }
+      closeRowMenu();
+    });
+    document.addEventListener("click", e=>{
+      if($("rowMenu").classList.contains("show") && !e.target.closest(".row-menu") && !e.target.closest('[data-act="more"]')) closeRowMenu();
+    });
+    $("burnYes").addEventListener("click", ()=>{ const n=burnName; $("burnModal").classList.remove("show"); if(n) downloadArtistSongs(n, true); });
+    $("burnNo").addEventListener("click", ()=>{ const n=burnName; $("burnModal").classList.remove("show"); if(n) downloadArtistSongs(n, false); });
+    $("burnCancel").addEventListener("click", ()=> $("burnModal").classList.remove("show"));
+    $("burnModal").addEventListener("click", e=>{ if(e.target===$("burnModal")) $("burnModal").classList.remove("show"); });
+    $("floatLyricBtn").addEventListener("click", ()=>{
+      state.floatLyricOn = !state.floatLyricOn;
+      $("floatLyricBtn").style.color = state.floatLyricOn ? "var(--accent2)" : "";
+      updateFloatLyric();
+    });
+    $("floatLyricBtn").style.color = state.floatLyricOn ? "var(--accent2)" : "";
+
+    // 播放模式（顺序 / 随机 / 单曲循环）
+    setPlayMode(state.playMode);
+    $("playModeBtn").addEventListener("click", cyclePlayMode);
+
+    // 歌单（创建 / 选择 / 播放 / 删除）
+    $("newPlBtn").addEventListener("click", ()=>{
+      const name = prompt("新建歌单名称：", "我的歌单");
+      if(name === null) return;
+      const nm = name.trim() || ("我的歌单 " + (Object.keys(state.playlists).length+1));
+      if(state.playlists[nm]){ toast("歌单已存在", "err"); return; }
+      state.playlists[nm] = [];
+      state.activePlaylist = nm;
+      savePlaylists();
+      renderPlaylists();
+      toast("已创建歌单「"+nm+"」", "ok");
+    });
+    $("plSelect").addEventListener("change", e=>{ state.activePlaylist = e.target.value; renderPlaylists(); });
+    $("playPlBtn").addEventListener("click", ()=>{
+      const pl = state.playlists[state.activePlaylist];
+      if(!pl || !pl.length){ toast("歌单为空", "err"); return; }
+      enqueueAndPlay(pl, 0);
+    });
+    $("delPlBtn").addEventListener("click", ()=>{
+      const nm = state.activePlaylist;
+      if(!nm){ toast("没有可删除的歌单", "err"); return; }
+      if(!confirm("确定删除歌单「"+nm+"」？")) return;
+      delete state.playlists[nm];
+      state.activePlaylist = null;
+      savePlaylists();
+      renderPlaylists();
+      toast("已删除歌单「"+nm+"」", "ok");
+    });
+    // 添加到歌单弹窗
+    $("plNewAdd").addEventListener("click", ()=>{
+      const nm = ($("plNewName").value || "").trim();
+      if(!nm){ toast("请输入歌单名称", "err"); return; }
+      if(!state.playlists[nm]) state.playlists[nm] = [];
+      addToPlaylist(nm, menuTrack);
+      closePlModal();
+    });
+    $("plModalClose").addEventListener("click", closePlModal);
+    $("plModal").addEventListener("click", e=>{ if(e.target===$("plModal")) closePlModal(); });
+
+    renderResults(); renderPlaylist(); renderPlaylists();
     toast("播放器就绪 · 数据来自 GD 音乐台");
     // 支持 ?artist= 自动播放（供壁纸软件一键唤起播放器）
     try{

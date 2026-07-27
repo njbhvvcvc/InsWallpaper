@@ -2,10 +2,11 @@
 from PyInstaller.utils.hooks import collect_submodules
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('C:/Users/h5e5t/AppData/Local/ms-playwright/chromium_headless_shell-1228', 'ms-playwright/chromium_headless_shell-1228'), ('C:/Users/h5e5t/AppData/Local/ms-playwright/ffmpeg-1011', 'ms-playwright/ffmpeg-1011'), ('C:/Users/h5e5t/WorkBuddy/2026-07-23-08-55-38/realesrgan', 'realesrgan'), ('C:/Users/h5e5t/WorkBuddy/2026-07-23-08-55-38/music_player.html', 'music_player.html'), ('C:/Users/h5e5t/WorkBuddy/2026-07-23-08-55-38/_pw_driver_filtered', 'playwright/driver')]
+datas = [('C:/Users/h5e5t/AppData/Local/ms-playwright/chromium_headless_shell-1228', 'ms-playwright/chromium_headless_shell-1228'), ('C:/Users/h5e5t/AppData/Local/ms-playwright/ffmpeg-1011', 'ms-playwright/ffmpeg-1011'), ('C:/Users/h5e5t/WorkBuddy/2026-07-23-08-55-38/realesrgan', 'realesrgan'), ('C:/Users/h5e5t/WorkBuddy/2026-07-23-08-55-38/_pw_driver_filtered', 'playwright/driver')]
 binaries = []
-hiddenimports = ['playwright.sync_api']
+hiddenimports = ['pystray', 'playwright.sync_api']
 hiddenimports += collect_submodules('playwright')
+hiddenimports += collect_submodules('pystray')
 tmp_ret = collect_all('PIL')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
