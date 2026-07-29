@@ -370,7 +370,12 @@ def fetch_ig(acc, log):
     log(f"本地已保留 {len(existing)} 张旧图, 开始补抓新图…")
     log(f"正在抓取 {url} ...")
     with sync_playwright() as p:
-        b = p.chromium.launch(headless=True)
+        # 加固:显式禁用沙箱/GPU/共享内存,规避部分环境无头启动失败
+        b = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-gpu",
+                  "--disable-dev-shm-usage", "--disable-software-rasterizer"],
+        )
         ctx = b.new_context(accept_downloads=True)
         pg = ctx.new_page()
         pg.goto("https://igram.world/en1/", wait_until="domcontentloaded", timeout=60000)
@@ -919,6 +924,23 @@ class App:
         root.title("INS 壁纸轮播器  v2.8.1")
         root.geometry("840x690")
         try:
+            root.minsize(560, 420)
+        except Exception:
+            pass
+        # 屏幕较矮时自动缩小窗口,避免底部日志区被屏幕边缘裁掉(用户也可手动拖拽边缘缩放)
+        try:
+            sh = root.winfo_screenheight()
+            sw = root.winfo_screenwidth()
+            if sh and sw:
+                w, h = 840, 690
+                if sh < h + 60:
+                    h = max(440, sh - 60)
+                if sw < w + 40:
+                    w = max(560, sw - 40)
+                root.geometry(f"{w}x{h}")
+        except Exception:
+            pass
+        try:
             root.iconbitmap()
         except Exception:
             pass
@@ -965,10 +987,48 @@ class App:
     def _build(self):
         pad = dict(padx=10, pady=6)
 
-        ttk.Label(self.root, text="INS 壁纸轮播器", style="Title.TLabel").pack(anchor="w", **pad)
+        # ===== 底部常驻日志区(固定高度,始终可见,绝不被上方内容挤出屏幕)=====
+        f_log = ttk.LabelFrame(self.root, text="运行日志（实时滚动 · 按 F12 查看完整/报错）")
+        f_log.pack(side="bottom", fill="x", padx=8, pady=(0, 6))
+        log_bar = ttk.Frame(f_log)
+        log_bar.pack(fill="x", padx=4, pady=(2, 0))
+        self.log_status_var = tk.StringVar(value="就绪")
+        ttk.Label(log_bar, textvariable=self.log_status_var, foreground="#555").pack(side="left", padx=(0, 8))
+        ttk.Button(log_bar, text="清空日志", command=self._clear_log).pack(side="right")
+        self.log_text = tk.Text(f_log, height=7, wrap="none", state="disabled",
+                                font=("Consolas", 9), bg="#0f1419", fg="#d6d6d6",
+                                insertbackground="#d6d6d6", relief="flat")
+        self.log_scroll = ttk.Scrollbar(f_log, orient="vertical", command=self.log_text.yview)
+        self.log_text.configure(yscrollcommand=self.log_scroll.set)
+        self.log_text.pack(side="left", fill="both", expand=True, padx=4, pady=(0, 4))
+        self.log_scroll.pack(side="right", fill="y", pady=(0, 4))
+        # 鼠标滚轮在日志区内只滚动日志本身,不向上冒泡影响主内容
+        self.log_text.bind("<MouseWheel>",
+                           lambda e: (self.log_text.yview_scroll(-1 * (e.delta // 120), "units"), "break"))
+
+        # ===== 主内容区(可滚动:内容再多也不挤出底部日志)=====
+        main_outer = ttk.Frame(self.root)
+        main_outer.pack(side="top", fill="both", expand=True)
+        self.main_canvas = tk.Canvas(main_outer, highlightthickness=0)
+        self.main_scroll = ttk.Scrollbar(main_outer, orient="vertical", command=self.main_canvas.yview)
+        self.main_canvas.configure(yscrollcommand=self.main_scroll.set)
+        self.main_canvas.pack(side="left", fill="both", expand=True)
+        self.main_scroll.pack(side="right", fill="y")
+        self.main_inner = ttk.Frame(self.main_canvas)
+        self._main_win = self.main_canvas.create_window((0, 0), window=self.main_inner, anchor="nw")
+        self.main_inner.bind("<Configure>", lambda e: self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all")))
+        self.main_canvas.bind("<Configure>", lambda e: self.main_canvas.itemconfig(self._main_win, width=self.main_canvas.winfo_width()))
+        # 鼠标滚轮滚动主内容(向上冒泡阻断,避免同时滚日志)
+        self.main_canvas.bind("<MouseWheel>",
+                              lambda e: (self.main_canvas.yview_scroll(-1 * (e.delta // 120), "units"), "break"))
+
+        # 以下所有控件统一挂到可滚动容器 self.main_inner
+        root = self.main_inner
+
+        ttk.Label(root, text="INS 壁纸轮播器", style="Title.TLabel").pack(anchor="w", **pad)
 
         # 天气(可选 · 非强制开启):平时显示温度+天气,每30分钟更新,点数字跳微软天气
-        f_weather = ttk.LabelFrame(self.root, text="天气（可选 · 非强制开启）")
+        f_weather = ttk.LabelFrame(root, text="天气（可选 · 非强制开启）")
         f_weather.pack(fill="x", **pad)
         self.weather_on_var = tk.BooleanVar(value=bool(self.cfg.get("weather_enabled", False)))
         ttk.Checkbutton(f_weather, text="显示天气（每30分钟自动更新）",
@@ -998,7 +1058,7 @@ class App:
         self._apply_weather_auto_state()
 
         # 导入来源
-        f0 = ttk.LabelFrame(self.root, text="导入来源")
+        f0 = ttk.LabelFrame(root, text="导入来源")
         f0.pack(fill="x", **pad)
         ttk.Label(f0, text="IG 链接(每行一个,可批量粘贴多个):").pack(anchor="w", padx=6, pady=(4, 0))
         self.url_text = tk.Text(f0, height=3, width=86)
@@ -1057,7 +1117,7 @@ class App:
                         command=self._on_ui_font_sync_change).pack(side="left", padx=(10, 2))
 
         # 来源列表(可滚动 + 勾选 + 时段)
-        f1 = ttk.LabelFrame(self.root, text="来源列表(勾选参与轮播,可设每日时段)")
+        f1 = ttk.LabelFrame(root, text="来源列表(勾选参与轮播,可设每日时段)")
         f1.pack(fill="both", expand=True, **pad)
         list_frame = ttk.Frame(f1)
         list_frame.pack(fill="both", expand=True, padx=6, pady=4)
@@ -1069,9 +1129,12 @@ class App:
         self.acct_inner = ttk.Frame(self.canvas)
         self.canvas.create_window((0, 0), window=self.acct_inner, anchor="nw")
         self.acct_inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        # 滚轮只滚账户列表本身,不冒泡到主内容
+        self.canvas.bind("<MouseWheel>",
+                         lambda e: (self.canvas.yview_scroll(-1 * (e.delta // 120), "units"), "break"))
 
         # 轮播设置
-        f2 = ttk.LabelFrame(self.root, text="轮播设置")
+        f2 = ttk.LabelFrame(root, text="轮播设置")
         f2.pack(fill="x", **pad)
         r = ttk.Frame(f2)
         r.pack(fill="x", padx=6, pady=4)
@@ -1133,7 +1196,7 @@ class App:
         ttk.Label(r4, text="小时(更新与轮换合一,无需手动刷新)", foreground="#999", font=("Microsoft YaHei", 8)).pack(side="left", padx=2)
 
         # 控制
-        f3 = ttk.Frame(self.root)
+        f3 = ttk.Frame(root)
         f3.pack(fill="x", **pad)
         self.btn_start = ttk.Button(f3, text="▶ 开始轮播", command=self.start)
         self.btn_start.pack(side="left", padx=4)
@@ -1144,10 +1207,10 @@ class App:
 
         # 状态
         self.status = tk.StringVar(value="就绪")
-        ttk.Label(self.root, textvariable=self.status, foreground="#555").pack(anchor="w", **pad)
+        ttk.Label(root, textvariable=self.status, foreground="#555").pack(anchor="w", **pad)
 
         # 免责声明
-        ttk.Label(self.root,
+        ttk.Label(root,
                   text="声明:本软件仅供个人将图片设为自己的桌面壁纸使用;图片版权归原作者所有,请勿用于分发或商业用途。",
                   foreground="#999", font=("Microsoft YaHei", 8)).pack(anchor="w", padx=10, pady=(0, 6))
 
@@ -1382,13 +1445,54 @@ class App:
                 self.log(f"限速错峰中,约 {int(wait)} 秒后刷新 {acc['name']}…")
                 time.sleep(wait)
             self._last_fetch_start = time.time()
-            n = fetch_account(acc, self.log)
-            self.root.after(0, self.refresh_account_list)
-            self.log(f"账户 {acc['name']} 抓取完成,共 {n} 张")
+            # 关键修复:在 --windowed 主进程里直接 launch chromium 会报 [WinError 2]
+            # (无控制台 / 无有效 stdout 句柄,playwright 启动子进程失败)。
+            # 改为 spawn 同 exe 的独立子进程(--fetch-bg)执行抓取:子进程拿到有效的
+            # stdout 管道,chromium 可正常启动;日志逐行实时回流到本界面。不弹黑窗。
+            import json as _json
+            tmp = os.path.join(APP_DIR, f"_fetch_{name}.json")
+            try:
+                with open(tmp, "w", encoding="utf-8") as _f:
+                    _json.dump(acc, _f, ensure_ascii=False)
+            except Exception as _e:
+                self.log(f"抓取失败(写临时配置): {_e}")
+                return
+            exe = sys.executable
+            try:
+                proc = subprocess.Popen(
+                    [exe, "--fetch-bg", tmp],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    creationflags=0x08000000,  # CREATE_NO_WINDOW:不弹黑窗
+                )
+            except Exception as _e:
+                self.log(f"抓取失败(启动子进程): {_e}")
+                return
+            # 读子进程 stdout,逐行回流到运行日志
+            for _raw in iter(proc.stdout.readline, b""):
+                _line = _raw.decode("utf-8", "ignore").rstrip("\r\n")
+                if _line.startswith("__DONE__ "):
+                    _n = _line.split(" ", 1)[1].strip()
+                    try:
+                        _n = int(_n)
+                    except Exception:
+                        _n = 0
+                    self.root.after(0, self.refresh_account_list)
+                    self.log(f"账户 {acc['name']} 抓取完成,共 {_n} 张")
+                elif _line.startswith("__FAIL__ "):
+                    self.log("抓取失败: " + _line[len("__FAIL__ "):])
+                elif _line:
+                    self.log(_line)
+            proc.wait()
         except Exception as e:
             self.log(f"抓取失败: {e}")
+            import traceback as _tb
+            self.log(_tb.format_exc())
         finally:
             self._fetching.discard(name)
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
 
     def delete_account(self, acc):
         note = "\n(文件夹类型仅移除引用,不会删除你的原文件夹)" if acc.get("type") == "folder" else "\n及其已下载图片?"
@@ -2539,15 +2643,59 @@ class App:
     def log(self, msg):
         s = str(msg)
         self.log_lines.append(s)
-        if len(self.log_lines) > 300:
-            self.log_lines = self.log_lines[-300:]
-        self.root.after(0, lambda: self.status.set(s))
+        if len(self.log_lines) > 1000:
+            self.log_lines = self.log_lines[-1000:]
+        # 实时写入底部常驻日志区(线程安全)
+        try:
+            if hasattr(self, "log_text"):
+                self.root.after(0, self._log_append, s)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "log_status_var"):
+                self.root.after(0, self.log_status_var.set, s)
+        except Exception:
+            pass
+        try:
+            self.root.after(0, lambda: self.status.set(s))
+        except Exception:
+            pass
+
+    def _log_append(self, s):
+        try:
+            self.log_text.configure(state="normal")
+            self.log_text.insert("end", s + "\n")
+            self.log_text.see("end")
+            # 限制底部日志行数,避免无限增长拖慢界面
+            n = int(self.log_text.index("end-1c").split(".")[0])
+            if n > 2000:
+                self.log_text.delete("1.0", f"{n - 1000}.0")
+            self.log_text.configure(state="disabled")
+        except Exception:
+            pass
+
+    def _clear_log(self):
+        try:
+            self.log_text.configure(state="normal")
+            self.log_text.delete("1.0", "end")
+            self.log_text.configure(state="disabled")
+            self.log_lines = []
+            self.status.set("日志已清空")
+            if hasattr(self, "log_status_var"):
+                self.log_status_var.set("日志已清空")
+        except Exception:
+            pass
 
     def show_errors(self):
-        """F12 快捷键:打开报错查看窗口,显示 app_error.log 与本次运行日志。"""
+        """F12 快捷键:打开运行日志 / 报错查看窗口,显示 app_error.log 与本次运行日志(完整)。
+        窗口置顶,避免被主窗口遮挡。"""
         win = tk.Toplevel(self.root)
-        win.title("报错查看 (F12)")
-        win.geometry("720x440")
+        win.title("运行日志 / 报错查看 (F12)")
+        win.geometry("760x480")
+        try:
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
         txt = tk.Text(win, wrap="word", font=("Consolas", 9))
         txt.pack(fill="both", expand=True, padx=8, pady=8)
 
@@ -2562,12 +2710,15 @@ class App:
                     txt.insert("end", str(e))
             else:
                 txt.insert("end", "(无 app_error.log,目前没有捕获到崩溃)\n")
-            txt.insert("end", "\n==== 本次运行日志(最近) ====\n")
-            txt.insert("end", "\n".join(self.log_lines[-200:]))
+            txt.insert("end", "\n==== 本次运行日志(全部) ====\n")
+            txt.insert("end", "\n".join(self.log_lines))
             txt.see("end")
 
         load()
-        ttk.Button(win, text="刷新", command=load).pack(pady=4)
+        ttk.Button(win, text="刷新 / 置顶",
+                   command=lambda: (load(), win.lift(), win.focus_force())).pack(pady=4)
+        win.lift()
+        win.focus_force()
 
     # ---------- 系统托盘 ----------
     def _setup_tray(self):
@@ -3120,6 +3271,26 @@ def _excepthook(etype, exc, tb):
     except Exception:
         pass
 
+def _fetch_bg():
+    """后台抓取: InsWallpaper.exe --fetch-bg <acc_json_path>
+    以独立子进程运行,规避 --windowed 主进程内 chromium.launch 报 [WinError 2]。
+    每行日志 print 到 stdout(flush=True);结束打印 __DONE__ <n> 或 __FAIL__ <err>。"""
+    try:
+        acc = json.load(open(sys.argv[2], encoding="utf-8"))
+    except Exception as e:
+        print("__FAIL__ 读取 acc 失败: " + str(e), flush=True)
+        return
+    def bg_log(m):
+        print(str(m), flush=True)
+    try:
+        n = fetch_account(acc, bg_log)
+        print("__DONE__ " + str(n), flush=True)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print("__FAIL__ " + str(e), flush=True)
+
+
 def _selftest():
     """隐藏自测: InsWallpaper.exe --selftest [ig_url] [out_dir]
     验证 frozen 环境下 Chromium 可被 playwright 加载并完成抓取,结果写 selftest_result.txt。
@@ -3144,6 +3315,8 @@ def _selftest():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
         _selftest()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--fetch-bg":
+        _fetch_bg()
     else:
         sys.excepthook = _excepthook
         # 单实例:若已有一个在跑,把窗口提到最前并提示,本进程直接退出
