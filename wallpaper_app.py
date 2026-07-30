@@ -1459,10 +1459,16 @@ class App:
                 return
             exe = sys.executable
             try:
+                # 给子进程注入 UTF-8 环境变量,与 _fetch_bg 内 TextIOWrapper 双重保险,
+                # 彻底杜绝管道 stdout 下中文乱码 / [Errno 22] 崩溃。
+                _child_env = os.environ.copy()
+                _child_env["PYTHONIOENCODING"] = "utf-8"
+                _child_env["PYTHONUTF8"] = "1"
                 proc = subprocess.Popen(
                     [exe, "--fetch-bg", tmp],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                     creationflags=0x08000000,  # CREATE_NO_WINDOW:不弹黑窗
+                    env=_child_env,
                 )
             except Exception as _e:
                 self.log(f"抓取失败(启动子进程): {_e}")
@@ -3274,21 +3280,64 @@ def _excepthook(etype, exc, tb):
 def _fetch_bg():
     """后台抓取: InsWallpaper.exe --fetch-bg <acc_json_path>
     以独立子进程运行,规避 --windowed 主进程内 chromium.launch 报 [WinError 2]。
-    每行日志 print 到 stdout(flush=True);结束打印 __DONE__ <n> 或 __FAIL__ <err>。"""
+    每行日志 print 到 stdout(flush=True);结束打印 __DONE__ <n> 或 __FAIL__ <err>。
+
+    关键修复:Windows + CREATE_NO_WINDOW + 管道 stdout 下,默认 sys.stdout.encoding
+    可能是 cp936/cp1252,会引发两个问题:
+      (a) 中文写入管道,父进程按 UTF-8 解码 → 运行日志乱码
+      (b) 偶发 OSError [Errno 22] Invalid argument → 子进程未处理崩溃 →
+          弹「Failed to execute script」框 + PyInstaller 临时目录 _MEIxxxxx 锁死
+    解决:把 stdout/stderr 重包成 UTF-8 TextIOWrapper(errors='replace'),
+    并把所有 print / traceback 包 try/except,确保子进程永不因日志崩溃。"""
+    # 1) 把 stdout/stderr 重定向成 UTF-8 文本流(带 errors='replace' 兜底)
+    try:
+        import io as _io
+        if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
+            sys.stdout = _io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
+                                           errors="replace", line_buffering=True)
+        if hasattr(sys.stderr, "buffer") and sys.stderr.buffer is not None:
+            sys.stderr = _io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
+                                           errors="replace", line_buffering=True)
+    except Exception:
+        pass
+    # 2) 安全日志:即使底层 print 抛错也吞掉,绝不杀掉子进程
+    def bg_log(m):
+        try:
+            print(str(m), flush=True)
+            return
+        except Exception:
+            pass
+        try:
+            sys.stdout.write(str(m) + "\n")
+            sys.stdout.flush()
+        except Exception:
+            pass
+    bg_log("[fetch-bg] 子进程启动,编码=UTF-8")
+    # 3) 读 acc
     try:
         acc = json.load(open(sys.argv[2], encoding="utf-8"))
     except Exception as e:
-        print("__FAIL__ 读取 acc 失败: " + str(e), flush=True)
+        bg_log("__FAIL__ 读取 acc 失败: " + str(e))
         return
-    def bg_log(m):
-        print(str(m), flush=True)
+    # 4) 跑抓取,任何异常都转成 __FAIL__,绝不裸抛
     try:
         n = fetch_account(acc, bg_log)
-        print("__DONE__ " + str(n), flush=True)
+        try:
+            print("__DONE__ " + str(n), flush=True)
+        except Exception:
+            pass
+        return
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print("__FAIL__ " + str(e), flush=True)
+        try:
+            import traceback as _tb
+            _tb.print_exc()
+        except Exception:
+            pass
+        try:
+            print("__FAIL__ " + str(e), flush=True)
+        except Exception:
+            pass
+        return
 
 
 def _selftest():
